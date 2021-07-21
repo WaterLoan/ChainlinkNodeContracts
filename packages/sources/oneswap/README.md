@@ -1,37 +1,27 @@
-# Chainlink External Adapter for Example
+# Chainlink External Adapter for OneSwap
 
 A template to be used as an example for new [External Adapters](https://github.com/smartcontractkit/external-adapters-js)
 
 (please fill out with corresponding information)
 
-An example adapter description
-
-### Environment Variables
-
-| Required? |  Name   |                                                        Description                                                         | Options | Defaults to |
-| :-------: | :-----: | :------------------------------------------------------------------------------------------------------------------------: | :-----: | :---------: |
-|           | API_KEY | An API key that can be obtained from the data provider's dashboard (add a ✅ in `Required?` if this parameter is required) |         |             |
-
----
+Query infomation from [OneSwap's API](https://github.com/oneswap/oneswap_open_api/blob/master/api-zh.md)
 
 ### Input Parameters
 
 | Required? |   Name   |     Description     |           Options            | Defaults to |
 | :-------: | :------: | :-----------------: | :--------------------------: | :---------: |
-|           | endpoint | The endpoint to use | [example](#Example-Endpoint) |   example   |
+|           | endpoint | The endpoint to use | [market](#Market-Endpoint) |   market   |
 
 ---
 
-## Example Endpoint
-
-An example endpoint description
+## Market Endpoint
 
 ### Input Params
 
 | Required? |            Name            |               Description                |       Options       | Defaults to |
 | :-------: | :------------------------: | :--------------------------------------: | :-----------------: | :---------: |
-|    ✅     | `base`, `from`, or `coin`  |   The symbol of the currency to query    | `BTC`, `ETH`, `USD` |             |
-|    ✅     | `quote`, `to`, or `market` | The symbol of the currency to convert to | `BTC`, `ETH`, `USD` |             |
+|    ✅     | `base`, `from`, or `coin`  | The address of market contract to query | ``0xFe103eDD7F98fc020575CBf0dE787dB26dE864A4 |             |
+|    ✅     | `quote`, `to`, or `market` | Anything in string | `dummy` |             |
 
 ### Sample Input
 
@@ -39,8 +29,8 @@ An example endpoint description
 {
   "id": "1",
   "data": {
-    "base": "ETH",
-    "quote": "USD"
+    "base": "0xFe103eDD7F98fc020575CBf0dE787dB26dE864A4",
+    "quote": "dummy"
   }
 }
 ```
