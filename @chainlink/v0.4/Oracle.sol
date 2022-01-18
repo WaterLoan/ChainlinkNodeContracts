@@ -1,19 +1,16 @@
-// SPDX-License-Identifier: MIT
-pragma solidity 0.6.6;
+pragma solidity 0.4.24;
 
-import "../@chainlink/v0.6/LinkTokenReceiver.sol";
-import "../@chainlink/v0.6/interfaces/ChainlinkRequestInterface.sol";
-import "../@chainlink/v0.6/interfaces/OracleInterface.sol";
-import "../@chainlink/v0.6/interfaces/LinkTokenInterface.sol";
-import "../@chainlink/v0.6/interfaces/WithdrawalInterface.sol";
-import "../@chainlink/v0.6/vendor/Ownable.sol";
-import "../@chainlink/v0.6/vendor/SafeMathChainlink.sol";
+import "./vendor/Ownable.sol";
+import "./vendor/SafeMathChainlink.sol";
+import "./interfaces/ChainlinkRequestInterface.sol";
+import "./interfaces/OracleInterface.sol";
+import "./interfaces/LinkTokenInterface.sol";
 
 /**
  * @title The Chainlink Oracle contract
  * @notice Node operators can deploy this contract to fulfill requests sent to them
  */
-contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkTokenReceiver, WithdrawalInterface {
+contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable {
   using SafeMathChainlink for uint256;
 
   uint256 constant public EXPIRY_TIME = 5 minutes;
@@ -21,6 +18,9 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
   // We initialize fields to 1 instead of 0 so that the first invocation
   // does not cost more gas.
   uint256 constant private ONE_FOR_CONSISTENT_GAS_COST = 1;
+  uint256 constant private SELECTOR_LENGTH = 4;
+  uint256 constant private EXPECTED_REQUEST_WORDS = 2;
+  uint256 constant private MINIMUM_REQUEST_LENGTH = SELECTOR_LENGTH + (32 * EXPECTED_REQUEST_WORDS);
 
   LinkTokenInterface internal LinkToken;
   mapping(bytes32 => bytes32) private commitments;
@@ -48,11 +48,34 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
    * @dev Sets the LinkToken address for the imported LinkTokenInterface
    * @param _link The address of the LINK token
    */
-  constructor(address _link)
-    public
-    Ownable()
-  {
+  constructor(address _link) public Ownable() {
     LinkToken = LinkTokenInterface(_link); // external but already deployed and unalterable
+  }
+
+  /**
+   * @notice Called when LINK is sent to the contract via `transferAndCall`
+   * @dev The data payload's first 2 words will be overwritten by the `_sender` and `_amount`
+   * values to ensure correctness. Calls oracleRequest.
+   * @param _sender Address of the sender
+   * @param _amount Amount of LINK sent (specified in wei)
+   * @param _data Payload of the transaction
+   */
+  function onTokenTransfer(
+    address _sender,
+    uint256 _amount,
+    bytes _data
+  )
+    public
+    onlyLINK
+    validRequestLength(_data)
+    permittedFunctionsForLINK(_data)
+  {
+    assembly { // solhint-disable-line no-inline-assembly
+      mstore(add(_data, 36), _sender) // ensure correct sender is passed
+      mstore(add(_data, 68), _amount) // ensure correct amount is passed
+    }
+    // solhint-disable-next-line avoid-low-level-calls
+    require(address(this).delegatecall(_data), "Unable to create request"); // calls oracleRequest
   }
 
   /**
@@ -76,11 +99,10 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
     bytes4 _callbackFunctionId,
     uint256 _nonce,
     uint256 _dataVersion,
-    bytes calldata _data
+    bytes _data
   )
     external
-    override
-    onlyLINK()
+    onlyLINK
     checkCallbackAddress(_callbackAddress)
   {
     bytes32 requestId = keccak256(abi.encodePacked(_sender, _nonce));
@@ -132,7 +154,6 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
   )
     external
     onlyAuthorizedNode
-    override
     isValidRequest(_requestId)
     returns (bool)
   {
@@ -151,8 +172,7 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
     // All updates to the oracle's fulfillment should come before calling the
     // callback(addr+functionId) as it is untrusted.
     // See: https://solidity.readthedocs.io/en/develop/security-considerations.html#use-the-checks-effects-interactions-pattern
-    (bool success, ) = _callbackAddress.call(abi.encodeWithSelector(_callbackFunctionId, _requestId, _data)); // solhint-disable-line avoid-low-level-calls
-    return success;
+    return _callbackAddress.call(_callbackFunctionId, _requestId, _data); // solhint-disable-line avoid-low-level-calls
   }
 
   /**
@@ -160,12 +180,7 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
    * @param _node The address of the Chainlink node
    * @return The authorization status of the node
    */
-  function getAuthorizationStatus(address _node)
-    external
-    view
-    override
-    returns (bool)
-  {
+  function getAuthorizationStatus(address _node) external view returns (bool) {
     return authorizedNodes[_node];
   }
 
@@ -174,11 +189,7 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
    * @param _node The address of the Chainlink node
    * @param _allowed Bool value to determine if the node can fulfill requests
    */
-  function setFulfillmentPermission(address _node, bool _allowed)
-    external
-    override
-    onlyOwner()
-  {
+  function setFulfillmentPermission(address _node, bool _allowed) external onlyOwner {
     authorizedNodes[_node] = _allowed;
   }
 
@@ -190,7 +201,6 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
    */
   function withdraw(address _recipient, uint256 _amount)
     external
-    override(OracleInterface, WithdrawalInterface)
     onlyOwner
     hasAvailableFunds(_amount)
   {
@@ -203,13 +213,7 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
    * @dev We use `ONE_FOR_CONSISTENT_GAS_COST` in place of 0 in storage
    * @return The amount of withdrawable LINK on the contract
    */
-  function withdrawable()
-    external
-    view
-    override(OracleInterface, WithdrawalInterface)
-    onlyOwner()
-    returns (uint256)
-  {
+  function withdrawable() external view onlyOwner returns (uint256) {
     return withdrawableTokens.sub(ONE_FOR_CONSISTENT_GAS_COST);
   }
 
@@ -228,10 +232,7 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
     uint256 _payment,
     bytes4 _callbackFunc,
     uint256 _expiration
-  )
-    external
-    override
-  {
+  ) external {
     bytes32 paramsHash = keccak256(
       abi.encodePacked(
         _payment,
@@ -247,20 +248,6 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
     emit CancelOracleRequest(_requestId);
 
     assert(LinkToken.transfer(msg.sender, _payment));
-  }
-
-  /**
-   * @notice Returns the address of the LINK token
-   * @dev This is the public implementation for chainlinkTokenAddress, which is
-   * an internal method of the ChainlinkClient contract
-   */
-  function getChainlinkToken()
-    public
-    view
-    override
-    returns (address)
-  {
-    return address(LinkToken);
   }
 
   // MODIFIERS
@@ -287,7 +274,28 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
    * @dev Reverts if `msg.sender` is not authorized to fulfill requests
    */
   modifier onlyAuthorizedNode() {
-    require(authorizedNodes[msg.sender] || msg.sender == owner(), "Not an authorized node to fulfill requests");
+    require(authorizedNodes[msg.sender] || msg.sender == owner, "Not an authorized node to fulfill requests");
+    _;
+  }
+
+  /**
+   * @dev Reverts if not sent from the LINK token
+   */
+  modifier onlyLINK() {
+    require(msg.sender == address(LinkToken), "Must use LINK token");
+    _;
+  }
+
+  /**
+   * @dev Reverts if the given data does not begin with the `oracleRequest` function selector
+   * @param _data The data payload of the request
+   */
+  modifier permittedFunctionsForLINK(bytes _data) {
+    bytes4 funcSelector;
+    assembly { // solhint-disable-line no-inline-assembly
+      funcSelector := mload(add(_data, 32))
+    }
+    require(funcSelector == this.oracleRequest.selector, "Must use whitelisted functions");
     _;
   }
 
@@ -297,6 +305,15 @@ contract Oracle is ChainlinkRequestInterface, OracleInterface, Ownable, LinkToke
    */
   modifier checkCallbackAddress(address _to) {
     require(_to != address(LinkToken), "Cannot callback to LINK");
+    _;
+  }
+
+  /**
+   * @dev Reverts if the given payload is less than needed to create a request
+   * @param _data The request payload
+   */
+  modifier validRequestLength(bytes _data) {
+    require(_data.length >= MINIMUM_REQUEST_LENGTH, "Invalid request length");
     _;
   }
 

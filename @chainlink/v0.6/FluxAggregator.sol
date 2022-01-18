@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.6.6;
 
-import "../@chainlink/v0.6/Median.sol";
-import "../@chainlink/v0.6/Owned.sol";
-import "../@chainlink/v0.6/SafeMath128.sol";
-import "../@chainlink/v0.6/SafeMath32.sol";
-import "../@chainlink/v0.6/SafeMath64.sol";
-import "../@chainlink/v0.6/interfaces/AggregatorV2V3Interface.sol";
-import "../@chainlink/v0.6/interfaces/AggregatorValidatorInterface.sol";
-import "../@chainlink/v0.6/interfaces/LinkTokenInterface.sol";
-import "../@chainlink/v0.6/vendor/SafeMathChainlink.sol";
+import "./Median.sol";
+import "./Owned.sol";
+import "./SafeMath128.sol";
+import "./SafeMath32.sol";
+import "./SafeMath64.sol";
+import "./interfaces/AggregatorV2V3Interface.sol";
+import "./interfaces/AggregatorValidatorInterface.sol";
+import "./interfaces/LinkTokenInterface.sol";
+import "./vendor/SafeMathChainlink.sol";
 
 /**
  * @title The Prepaid Aggregator contract
