@@ -27,7 +27,7 @@ def main():
     click.echo(f"当前账户 BCH 余额: {gov.balance()}")
 
     prevBalance = gov.balance()
-    gas_strategy = LinearScalingStrategy("160 gwei", "180 gwei", 1.1)
+    gas_strategy = LinearScalingStrategy("20 gwei", "50 gwei", 1.1)
     gas_price(gas_strategy)
 
     try:
