@@ -1,7 +1,7 @@
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
-
+const privateKey = 'PRIVATE KEY HERE'
 require('@nomiclabs/hardhat-ethers');
 
 task(`deployLibs`, `Deploy Chainlink Libs`)
@@ -63,7 +63,7 @@ task(`deployAggregator`, `Deploy Chainlink Aggregator`)
             //     string memory _description
             // )
             const aggregator = await FluxAggregator.deploy(args.link, 0, 60, args.validator, args.min, args.max, args.decimals, args.description);
-            aggregator.changeOracles([], [args.oracle], [args.admin], 1, 1, 0);
+            await aggregator.changeOracles([], [args.oracle], [args.admin], 1, 1, 0);
 
             console.log("Aggregator deployed to:", aggregator.address);
         }
@@ -92,4 +92,12 @@ module.exports = {
             },
         ],
     },
+    networks:{
+        coinex: {
+            url: 'https://rpc2.coinex.net/',
+            chainId: 52,
+            gasPrice: 500000000000,
+            accounts: [privateKey],
+        },
+    }
 };
